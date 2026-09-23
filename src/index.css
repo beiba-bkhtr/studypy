@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ---- Brand ------------------------------------------------------------ */
+  --color-brand-primary: #10B981;   /* emerald */
+  --color-brand-secondary: #22D3EE; /* cyan    */
+  --color-brand-accent: #2DD4BF;    /* teal    */
+  --color-bg-dark: #040A08;
+  --color-bg-surface: #0E1614;
+  --color-bg-elevated: #14201D;
+
+  /*
+   * The UI is written with Tailwind's purple / violet / indigo / blue
+   * utilities in ~180 places. Rather than rewriting that markup (and risking
+   * layout regressions), the ramps themselves are retargeted here, so every
+   * existing class renders in the new palette with no component changes.
+   */
+
+  /* purple + violet -> emerald */
+  --color-purple-50:  #ECFDF5;
+  --color-purple-100: #D1FAE5;
+  --color-purple-200: #A7F3D0;
+  --color-purple-300: #6EE7B7;
+  --color-purple-400: #34D399;
+  --color-purple-500: #10B981;
+  --color-purple-600: #059669;
+  --color-purple-700: #047857;
+  --color-purple-800: #065F46;
+  --color-purple-900: #064E3B;
+  --color-purple-950: #022C22;
+
+  --color-violet-50:  #ECFDF5;
+  --color-violet-100: #D1FAE5;
+  --color-violet-200: #A7F3D0;
+  --color-violet-300: #6EE7B7;
+  --color-violet-400: #34D399;
+  --color-violet-500: #10B981;
+  --color-violet-600: #059669;
+  --color-violet-700: #047857;
+  --color-violet-800: #065F46;
+  --color-violet-900: #064E3B;
+  --color-violet-950: #022C22;
+
+  /* indigo -> teal (kept distinct from purple so tiers stay readable) */
+  --color-indigo-50:  #F0FDFA;
+  --color-indigo-100: #CCFBF1;
+  --color-indigo-200: #99F6E4;
+  --color-indigo-300: #5EEAD4;
+  --color-indigo-400: #2DD4BF;
+  --color-indigo-500: #14B8A6;
+  --color-indigo-600: #0D9488;
+  --color-indigo-700: #0F766E;
+  --color-indigo-800: #115E59;
+  --color-indigo-900: #134E4A;
+  --color-indigo-950: #042F2E;
+
+  /* blue -> cyan */
+  --color-blue-50:  #ECFEFF;
+  --color-blue-100: #CFFAFE;
+  --color-blue-200: #A5F3FC;
+  --color-blue-300: #67E8F9;
+  --color-blue-400: #22D3EE;
+  --color-blue-500: #06B6D4;
+  --color-blue-600: #0891B2;
+  --color-blue-700: #0E7490;
+  --color-blue-800: #155E75;
+  --color-blue-900: #164E63;
+  --color-blue-950: #083344;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /*
+     * `optimizeLegibility` forces ligature/kerning work on every text run and
+     * measurably slows first paint on large display type. The default already
+     * enables kerning for the fonts used here.
+     */
+    text-rendering: optimizeSpeed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--color-bg-dark);
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-bg-dark text-white font-sans antialiased selection:bg-brand-primary/30;
+  }
+
+  ::selection {
+    color: #ffffff;
+  }
+}
+
+/* ---- Surfaces ---------------------------------------------------------- */
+
+.glass {
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  /*
+   * No `will-change` here on purpose. `.glass` is used on dozens of elements
+   * at once; promoting every one of them to its own compositor layer costs
+   * significant GPU memory and slows scrolling on integrated graphics.
+   * Promotion is opt-in via `.gpu-layer` for elements that actually animate.
+   */
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-primary to-brand-secondary;
+}
+
+.glow-shadow {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+}
+
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  .animate-shake {
+    animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+  }
+
+  /* Explicit compositor promotion, for elements that are genuinely animating. */
+  .gpu-layer {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
+  /* Cheap CSS-driven drift, used in place of per-element JS animation loops. */
+  .animate-float-drift {
+    animation: float-drift var(--drift-duration, 14s) linear infinite;
+    animation-delay: var(--drift-delay, 0s);
+  }
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes float-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(var(--drift-x, 0px), -100px, 0) scale(1.15); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* ---- Scrollbar --------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-bg-dark;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ------------------------------------------------------------------------ *
+ * Low-performance mode
+ *
+ * `<html>` carries `data-perf="low"` (set from AuthContext) when the machine
+ * is weak, the connection is slow, or the user asked for it. Switching the
+ * expensive effects off here — instead of in each component — keeps the
+ * markup and layout identical while removing the work that actually causes
+ * dropped frames: backdrop filters, very large blur radii, and compositor
+ * layers that are promoted but never animated.
+ * ------------------------------------------------------------------------ */
+
+:root[data-perf="low"] .glass,
+:root[data-perf="low"] [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* Opaque-ish fill so panels stay readable without the blur behind them. */
+  background-color: rgba(14, 22, 20, 0.92);
+}
+
+/* Large decorative blur discs are the single most expensive thing on screen. */
+:root[data-perf="low"] [class*="blur-\[100px\]"],
+:root[data-perf="low"] [class*="blur-\[120px\]"],
+:root[data-perf="low"] [class*="blur-\[150px\]"],
+:root[data-perf="low"] [class*="blur-\[180px\]"],
+:root[data-perf="low"] [class*="blur-\[200px\]"] {
+  filter: blur(40px) !important;
+  opacity: 0.25 !important;
+}
+
+:root[data-perf="low"] * {
+  /* Drop shadows on moving elements force repeated rasterization. */
+  text-shadow: none !important;
+}
+
+:root[data-perf="low"] .glow-shadow {
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+:root[data-perf="low"] .gpu-layer {
+  will-change: auto;
+}
+
+/* ---- Reduced motion ---------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
