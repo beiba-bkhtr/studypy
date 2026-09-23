@@ -52,6 +52,34 @@ UI — see the note in `src/contexts/AuthContext.tsx` before changing it.
 
 You will also need Firestore security rules; none are included here.
 
+## Database (Neon)
+
+Data lives in PostgreSQL, hosted on [Neon](https://neon.tech). Authentication
+stays with Firebase — Neon stores application data only, keyed by the Firebase
+uid, so no credentials are held here.
+
+1. Create a project at https://console.neon.tech and copy its connection string.
+2. Put it in `.env`:
+
+   ```
+   DATABASE_URL="postgres://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require"
+   ```
+
+3. Apply the schema:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+The same code runs against a local PostgreSQL for development — point
+`DATABASE_URL` at it instead; the schema is plain PostgreSQL with no
+Neon-specific features.
+
+`db/migrations/001_initial.sql` is the schema, `db/client.ts` the pool and
+transaction helper, and `db/users.ts` the user/leaderboard queries. The browser
+never connects to the database directly: it reads through the API, and
+`/api/health` reports database reachability.
+
 ## Scripts
 
 ```bash
