@@ -16,7 +16,7 @@ import fallbackConfig from '../firebase-applet-config.json';
  */
 const env = import.meta.env;
 
-const firebaseConfig = {
+const resolved = {
   apiKey: env.VITE_FIREBASE_API_KEY || fallbackConfig.apiKey,
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || fallbackConfig.authDomain,
   projectId: env.VITE_FIREBASE_PROJECT_ID || fallbackConfig.projectId,
@@ -26,17 +26,40 @@ const firebaseConfig = {
   measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || fallbackConfig.measurementId,
 };
 
-const firestoreDatabaseId =
-  env.VITE_FIREBASE_DATABASE_ID || fallbackConfig.firestoreDatabaseId || '(default)';
+export const isFirebaseConfigured = Boolean(resolved.apiKey && resolved.projectId);
 
-// A missing key surfaces later as an opaque `auth/invalid-api-key`; say so plainly.
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+/*
+ * `getAuth()` throws `auth/invalid-api-key` on an empty key, and it runs while
+ * this module is being evaluated — so an unconfigured checkout would take the
+ * whole app down with a blank page before anything rendered.
+ *
+ * When configuration is missing we therefore hand Firebase a structurally
+ * valid placeholder instead. The SDK constructs normally, the UI renders, and
+ * only the network calls fail — which the app already reports through its
+ * existing error handling.
+ */
+const PLACEHOLDER_CONFIG = {
+  apiKey: 'unconfigured-api-key',
+  authDomain: 'unconfigured.firebaseapp.com',
+  projectId: 'unconfigured',
+  storageBucket: 'unconfigured.appspot.com',
+  messagingSenderId: '000000000000',
+  appId: '1:000000000000:web:0000000000000000000000',
+  measurementId: '',
+};
+
+if (!isFirebaseConfigured) {
   console.error(
     'Firebase is not configured. Copy .env.example to .env and set the ' +
-      'VITE_FIREBASE_* values from your Firebase project settings. ' +
-      'Sign-in, profiles and leaderboards stay unavailable until then.',
+      'VITE_FIREBASE_* values from your Firebase project settings. The app ' +
+      'will run, but sign-in, profiles and leaderboards stay unavailable.',
   );
 }
+
+const firebaseConfig = isFirebaseConfigured ? resolved : PLACEHOLDER_CONFIG;
+
+const firestoreDatabaseId =
+  env.VITE_FIREBASE_DATABASE_ID || fallbackConfig.firestoreDatabaseId || '(default)';
 
 const app = initializeApp(firebaseConfig);
 
