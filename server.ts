@@ -9,8 +9,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { App as FirebaseAdminApp, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth as getFirebaseAdminAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { isDatabaseConfigured, ping as dbPing } from "./db/client";
-import * as usersDb from "./db/users";
 import firebaseConfig from "./firebase-applet-config.json";
 import { LESSONS } from "./src/constants/lessons";
 import { PERKS } from "./src/constants/perks";
@@ -511,95 +509,8 @@ export async function createServerApp() {
   });
 
   
-  app.get("/api/health", async (req, res) => {
-    res.json({
-      status: "ok",
-      database: isDatabaseConfigured ? (await dbPing() ? "up" : "unreachable") : "not-configured",
-    });
-  });
-
-  /*
-   * Read endpoints backed by Neon.
-   *
-   * The browser used to query Firestore directly. It cannot hold a Postgres
-   * connection, so reads now come through here; writes already went through
-   * the server.
-   */
-  const requireDatabase: express.RequestHandler = (req, res, next) => {
-    if (!isDatabaseConfigured) {
-      res.status(503).json({ error: "Database is not configured" });
-      return;
-    }
-    next();
-  };
-
-  app.get("/api/users/me", requireAuth, requireDatabase, async (req, res) => {
-    const identity = (req as AuthenticatedRequest).identity;
-    if (!identity) {
-      res.status(401).json({ error: "Authentication is required" });
-      return;
-    }
-    try {
-      const profile = await usersDb.getProfile(identity.uid);
-      if (!profile) {
-        res.status(404).json({ error: "Profile was not found" });
-        return;
-      }
-      res.json({ profile });
-    } catch (error) {
-      console.error("Failed to load profile:", error);
-      res.status(500).json({ error: "Unable to load profile" });
-    }
-  });
-
-  app.post("/api/users/me", requireAuth, requireDatabase, rateLimit("profile-create", 10, 60_000), async (req, res) => {
-    const identity = (req as AuthenticatedRequest).identity;
-    const username = readString(req.body?.username, 50);
-    if (!identity || !username) {
-      res.status(400).json({ error: "username is required" });
-      return;
-    }
-    try {
-      if (await usersDb.isUsernameTaken(username, identity.uid)) {
-        res.status(409).json({ error: "That nickname is already taken" });
-        return;
-      }
-      res.status(201).json({ profile: await usersDb.createProfile(identity.uid, username) });
-    } catch (error) {
-      console.error("Failed to create profile:", error);
-      res.status(500).json({ error: "Unable to create profile" });
-    }
-  });
-
-  app.get("/api/users/by-username/:username", requireDatabase, async (req, res) => {
-    const username = readString(req.params?.username, 50);
-    if (!username) {
-      res.status(400).json({ error: "username is required" });
-      return;
-    }
-    try {
-      const profile = await usersDb.getProfileByUsername(username);
-      if (!profile) {
-        res.status(404).json({ error: "Profile was not found" });
-        return;
-      }
-      // Public view: omit fields that are private to the account owner.
-      const { completedDailyChallenges, dailyQuests, ...publicProfile } = profile;
-      res.json({ profile: publicProfile });
-    } catch (error) {
-      console.error("Failed to load public profile:", error);
-      res.status(500).json({ error: "Unable to load profile" });
-    }
-  });
-
-  app.get("/api/leaderboard", requireDatabase, async (req, res) => {
-    const limit = Number(req.query?.limit ?? 50);
-    try {
-      res.json({ entries: await usersDb.getLeaderboard(limit) });
-    } catch (error) {
-      console.error("Failed to load leaderboard:", error);
-      res.status(500).json({ error: "Unable to load leaderboard" });
-    }
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
   });
 
   app.post("/api/lessons/complete", requireAuth, rateLimit("lesson-complete", 30, 60_000), async (req, res) => {
