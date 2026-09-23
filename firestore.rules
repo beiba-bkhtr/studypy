@@ -1,0 +1,279 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'username', 'xp', 'level', 'inventory', 'stats']) &&
+             data.uid is string &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
+             data.xp is number && data.xp >= 0 &&
+             data.level is number && data.level >= 1 &&
+             data.inventory is list &&
+             data.stats is map &&
+             (!('role' in data) || data.role in ['admin', 'user']) &&
+             (!('coins' in data) || (data.coins is number && data.coins >= 0)) &&
+             (!('avatar' in data) || data.avatar is string) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 500));
+    }
+
+    function isValidListing(data) {
+      return data.keys().hasAll(['sellerId', 'sellerName', 'itemId', 'itemName', 'price', 'createdAt']) &&
+             data.sellerId == request.auth.uid &&
+             data.sellerName is string &&
+             data.itemId is string &&
+             data.itemName is string &&
+             data.price is number && data.price > 0 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidTrade(data) {
+      return data.keys().hasAll(['senderId', 'senderName', 'receiverId', 'senderItems', 'receiverItems', 'status', 'createdAt']) &&
+             data.senderId == request.auth.uid &&
+             data.senderName is string &&
+             data.receiverId is string &&
+             data.senderItems is list &&
+             data.receiverItems is list &&
+             data.status in ['pending', 'accepted', 'rejected'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['action', 'timestamp']) &&
+             data.action is string &&
+             data.timestamp is timestamp;
+    }
+
+    function isSafeInitialUser(data) {
+      return isValidUser(data) &&
+             data.xp == 0 && data.level == 1 && data.coins == 100 &&
+             data.inventory.size() == 0 && data.completedLessons.size() == 0 &&
+             data.stats.logic == 1 && data.stats.speed == 1 && data.stats.power == 1 &&
+             data.stats.intellect == 1 && data.stats.stamina == 1 &&
+             (!('role' in data) || data.role == 'user');
+    }
+
+    function hasOnlyPublicProfileChanges() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['username', 'avatar', 'bio']) &&
+             request.resource.data.username is string &&
+             request.resource.data.username.size() > 0 &&
+             request.resource.data.username.size() < 50 &&
+             (!('avatar' in request.resource.data) || request.resource.data.avatar is string) &&
+             (!('bio' in request.resource.data) ||
+               (request.resource.data.bio is string && request.resource.data.bio.size() < 500));
+    }
+
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    function isValidSnippet(data) {
+      return data.keys().hasAll(['title', 'code', 'authorId', 'authorName', 'likes', 'stars', 'starredBy', 'commentCount', 'createdAt']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.code is string && data.code.size() >= 1 && data.code.size() <= 10000 &&
+             data.authorId == request.auth.uid &&
+             data.likes is number && data.likes >= 0 &&
+             data.stars is number && data.stars >= 0 &&
+             data.starredBy is list &&
+             data.commentCount is number &&
+             data.createdAt is timestamp;
+    }
+
+    match /snippets/{snippetId} {
+      allow read: if true;
+      // Publishing, reactions, and counters are server-managed to prevent forged
+      // authors, unlimited likes, and direct counter manipulation.
+      allow write: if isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      match /likes/{likeId} {
+        allow read, write: if isAdmin();
+      }
+
+      match /stars/{starId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participants);
+      allow write: if isAdmin();
+      
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+        allow write: if isAdmin();
+      }
+    }
+
+    match /active_bosses/{bossId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /ai_quests/{questId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /friend_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /friendships/{friendshipId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.users);
+      allow write: if isAdmin();
+    }
+
+    match /guilds/{guildId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isSafeInitialUser(request.resource.data);
+      
+      allow update: if isAdmin() || (isOwner(userId) && hasOnlyPublicProfileChanges());
+      allow delete: if isAdmin();
+    }
+
+    match /marketplace/{listingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /trades/{tradeId} {
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidLog(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.text is string && request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 1000;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /submissions/{submissionId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+        request.resource.data.lessonId is string && request.resource.data.lessonId.size() <= 120 &&
+        request.resource.data.code is string && request.resource.data.code.size() <= 20000;
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

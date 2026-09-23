@@ -1,0 +1,20 @@
+{
+  "firestore": [
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    }
+  ],
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "StudyPy",
+        "supportEmail": "bahtibeyba@gmail.com",
+        "authorizedRedirectUris": [
+          "http://localhost"
+        ]
+      }
+    }
+  }
+}
