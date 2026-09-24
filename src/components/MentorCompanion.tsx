@@ -1,19 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, BrainCircuit, MessageSquareCode, GraduationCap, Loader2, X, Terminal, Code2, Lightbulb, Zap, History } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { playSound } from '../utils/sounds';
-import { getMentorHint } from '../services/gemini';
+import { getMentorChat, getMentorHint, type MentorChatMessage } from '../services/gemini';
 import { toast } from 'sonner';
 
 export const MentorCompanion = React.memo(() => {
-  const { userProfile, lastCodeResult, currentCode, currentChallenge } = useAuth();
+  const { currentUser, userProfile, lastCodeResult, currentCode, currentChallenge } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [mentorHint, setMentorHint] = useState('');
   const [isMentorLoading, setIsMentorLoading] = useState(false);
   const [history, setHistory] = useState<{ role: 'user' | 'mentor', content: string }[]>([]);
   const [activeTab, setActiveTab] = useState<'chat' | 'analysis' | 'history'>('chat');
+  const [input, setInput] = useState('');
+  const [chat, setChat] = useState<MentorChatMessage[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chat, isMentorLoading]);
 
   useEffect(() => {
     if (lastCodeResult) {
@@ -45,6 +52,36 @@ export const MentorCompanion = React.memo(() => {
     }
   };
 
+  const handleSend = async () => {
+    const question = input.trim();
+    if (!question || isMentorLoading) return;
+    if (!currentUser) {
+      toast.error('Войди в аккаунт, чтобы общаться с ментором');
+      return;
+    }
+
+    const nextChat = [...chat, { role: 'user' as const, content: question }];
+    setInput('');
+    setChat(nextChat);
+    setHistory(prev => [...prev, { role: 'user', content: question }]);
+    setIsMentorLoading(true);
+    playSound('click');
+    try {
+      const answer = await getMentorChat(nextChat, {
+        username: userProfile?.username,
+        level: userProfile?.level,
+      });
+      setChat(prev => [...prev, { role: 'assistant', content: answer }]);
+      setHistory(prev => [...prev, { role: 'mentor', content: answer }]);
+      playSound('message');
+    } catch (err) {
+      setChat(prev => [...prev, { role: 'assistant', content: 'Ой, связь с ИИ-модулем прервалась. Попробуй еще раз через минуту!' }]);
+      playSound('error');
+    } finally {
+      setIsMentorLoading(false);
+    }
+  };
+
   const analyzeCode = async () => {
     if (!currentCode || currentCode.trim().length < 5) {
       toast.error('Напиши хотя бы немного кода для анализа!');
@@ -53,10 +90,10 @@ export const MentorCompanion = React.memo(() => {
 
     setIsMentorLoading(true);
     try {
-      const analysis = await getMentorHint(currentCode, { 
-        title: 'Code Analysis', 
-        description: 'Analyze this code for best practices, PEP 8 compliance, and potential optimizations.' 
-      } as any);
+      const analysis = await getMentorHint(
+        currentCode,
+        'Проанализируй этот код: соответствие PEP 8, лучшие практики и возможные оптимизации.',
+      );
       setMentorHint(analysis);
       setHistory(prev => [...prev, { role: 'mentor', content: analysis }]);
       playSound('success');
@@ -145,6 +182,26 @@ export const MentorCompanion = React.memo(() => {
                     </motion.div>
                   )}
 
+                  {chat.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.role === 'user'
+                          ? 'bg-brand-primary text-black font-medium rounded-tr-none'
+                          : 'bg-white/5 border border-white/10 text-white/80 rounded-tl-none'
+                      }`}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isMentorLoading && (
+                    <div className="flex justify-start">
+                      <div className="p-4 rounded-2xl rounded-tl-none bg-white/5 border border-white/10">
+                        <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+
                   <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={handleGetHint}
@@ -211,10 +268,22 @@ export const MentorCompanion = React.memo(() => {
               <div className="relative">
                 <input 
                   type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSend();
+                  }}
+                  onFocus={() => setActiveTab('chat')}
+                  maxLength={2000}
                   placeholder="Задай вопрос ментору..."
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm focus:outline-none focus:border-brand-primary/50 transition-all pr-12"
                 />
-                <button className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-brand-primary hover:scale-110 transition-all">
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || isMentorLoading}
+                  aria-label="Отправить сообщение"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-brand-primary hover:scale-110 transition-all disabled:opacity-30 disabled:hover:scale-100"
+                >
                   <Zap className="w-5 h-5 fill-current" />
                 </button>
               </div>
