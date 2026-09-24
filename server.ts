@@ -5,7 +5,6 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHash, createPublicKey, randomInt, randomUUID, verify as verifySignature } from "crypto";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { App as FirebaseAdminApp, cert, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth as getFirebaseAdminAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -163,9 +162,6 @@ const createFirebaseAdminApp = (): FirebaseAdminApp | null => {
       throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields");
     }
     console.log("[FIREBASE] Service account OK, project_id:", candidate.project_id);
-    console.log("[FIREBASE] private_key starts with:", String(candidate.private_key).substring(0, 30));
-    console.log("[FIREBASE] private_key contains \\\\n:", String(candidate.private_key).includes("\\n"));
-    console.log("[FIREBASE] private_key contains newline:", String(candidate.private_key).includes("\n"));
     return getApps()[0] || initializeApp({
       credential: cert({
         projectId: candidate.project_id,
@@ -359,9 +355,42 @@ export async function createServerApp() {
   });
 
   
-  const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
-  const model = geminiApiKey
-    ? new GoogleGenerativeAI(geminiApiKey).getGenerativeModel({ model: "gemini-1.5-flash" })
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const openRouterModel = process.env.OPENROUTER_MODEL?.trim() || "openrouter/free";
+  const model = openRouterApiKey
+    ? {
+        async generate(prompt: string, system?: string): Promise<string> {
+          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openRouterApiKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": process.env.APP_URL || "https://study-py.app",
+              "X-Title": "StudyPy",
+            },
+            body: JSON.stringify({
+              model: openRouterModel,
+              messages: [
+                ...(system ? [{ role: "system", content: system }] : []),
+                { role: "user", content: prompt },
+              ],
+            }),
+            signal: AbortSignal.timeout(60_000),
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok) {
+            throw new Error(`OpenRouter ${response.status}: ${data?.error?.message || "request failed"}`);
+          }
+          const text = data?.choices?.[0]?.message?.content;
+          if (typeof text !== "string" || !text.trim()) throw new Error("OpenRouter returned an empty response");
+          return text.trim();
+        },
+        async generateJson(prompt: string): Promise<unknown> {
+          const text = await this.generate(prompt, "Отвечай только валидным JSON без пояснений и без Markdown.");
+          const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+          return JSON.parse(fenced ? fenced[1] : text);
+        },
+      }
     : null;
 
   app.disable("x-powered-by");
@@ -2248,11 +2277,9 @@ export async function createServerApp() {
         Отвечай на русском языке.
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      res.json({ text: response.text() });
+      res.json({ text: await model.generate(prompt) });
     } catch (err) {
-      console.error("Gemini Proxy Error:", err);
+      console.error("AI Proxy Error:", err);
       res.status(500).json({ error: "Failed to generate hint" });
     }
   });
@@ -2286,13 +2313,13 @@ ${history}
 
 Ответь на последнее сообщение ученика.`;
 
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        systemInstruction: "Ты — мудрый и веселый наставник-программист. Используй Markdown для форматирования кода.",
-      });
-      res.json({ text: result.response.text() });
+      const text = await model.generate(
+        prompt,
+        "Ты — мудрый и веселый наставник-программист. Используй Markdown для форматирования кода.",
+      );
+      res.json({ text });
     } catch (err) {
-      console.error("Gemini Chat Proxy Error:", err);
+      console.error("AI Chat Proxy Error:", err);
       res.status(500).json({ error: "Failed to generate chat response" });
     }
   });
@@ -2303,7 +2330,7 @@ ${history}
       const userLevel = Number.isFinite(requestedLevel)
         ? Math.max(1, Math.min(100, Math.floor(requestedLevel)))
         : 1;
-      if (!model) throw new Error("Gemini is not configured");
+      if (!model) throw new Error("AI is not configured");
       const prompt = `
         Сгенерируй ежедневное испытание по Python для ученика ${userLevel} уровня.
         Верни ответ в формате JSON:
@@ -2318,14 +2345,9 @@ ${history}
         }
       `;
 
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      });
-      const response = await result.response;
-      res.json(JSON.parse(response.text()));
+      res.json(await model.generateJson(prompt));
     } catch (err) {
-      console.error("Gemini Proxy Error:", err);
+      console.error("AI Proxy Error:", err);
       
       res.json({
         title: "Сумма четных чисел (Резервная задача)",
@@ -2343,7 +2365,7 @@ ${history}
 
   app.post("/api/admin/generate-daily", requireAuth, requireAdmin, rateLimit("admin-generate-daily", 2, 60_000), async (req, res) => {
     try {
-      if (!model) throw new Error("Gemini is not configured");
+      if (!model) throw new Error("AI is not configured");
       const prompt = `
         Ты — ИИ-Мастер в ролевой игре StudyPy. Сгенерируй 10 РАЗНЫХ ежедневных программистских задания на языке Python.
         Сложность должна быть разной: 3 easy, 4 medium, 3 hard.
@@ -2359,13 +2381,7 @@ ${history}
         Верни ответ СТРОГО В ВИДЕ JSON-МАССИВА из 10 объектов.
       `;
 
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      });
-      const response = await result.response;
-      let text = response.text().trim();
-      res.json(JSON.parse(text));
+      res.json(await model.generateJson(prompt));
     } catch (err) {
       console.error("Global Daily Quests Generation Error:", err);
       

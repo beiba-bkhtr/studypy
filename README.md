@@ -2,7 +2,7 @@
 
 StudyPy is an RPG-style Python learning app: interactive lessons, in-browser code
 execution via Pyodide, a Monaco editor, realtime sandbox/duel features, and an
-optional Gemini-powered mentor.
+optional AI mentor (via OpenRouter).
 
 Built with React 19, Vite, TypeScript, Tailwind CSS v4, Firebase and Socket.IO.
 
@@ -10,7 +10,7 @@ Built with React 19, Vite, TypeScript, Tailwind CSS v4, Firebase and Socket.IO.
 
 - Node.js 20+
 - A Firebase project (Auth + Firestore)
-- A Gemini API key, if you want the AI mentor and generated daily challenges
+- An OpenRouter API key, if you want the AI mentor and generated daily challenges
 
 ## Getting started
 
